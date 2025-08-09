@@ -126,6 +126,9 @@ void BydCanInverter::map_can_frame_to_variable(CAN_frame rx_frame) {
 
 void BydCanInverter::transmit_can(unsigned long currentMillis) {
 
+  // Deye: start TX immediately – do not wait for a specific RX frame
+  inverterStartedUp = true;
+
   if (!inverterStartedUp) {
     //Avoid sending messages towards inverter, unless it has woken up and sent something to us first
     return;
@@ -137,19 +140,19 @@ void BydCanInverter::transmit_can(unsigned long currentMillis) {
     initialDataSent = true;
   }
 
-  // Send 2s CAN Message
-  if (currentMillis - previousMillis2s >= INTERVAL_2_S) {
-    previousMillis2s = currentMillis;
+// Heartbeat: co 100 ms nadaj jedną z 4 kluczowych ramek (rozstrzelone czasy)
+  static unsigned long prev100 = 0;
+  static uint8_t slot = 0;
 
-    transmit_can_frame(&BYD_110);
-  }
-  // Send 10s CAN Message
-  if (currentMillis - previousMillis10s >= INTERVAL_10_S) {
-    previousMillis10s = currentMillis;
+  if (currentMillis - prev100 >= 100) {
+    prev100 = currentMillis;
 
-    transmit_can_frame(&BYD_150);
-    transmit_can_frame(&BYD_1D0);
-    transmit_can_frame(&BYD_210);
+    switch (slot++ & 0x3) {
+      case 0: transmit_can_frame(&BYD_110); break; // limity + napięcia docelowe
+      case 1: transmit_can_frame(&BYD_1D0); break; // V/I + Tavg
+      case 2: transmit_can_frame(&BYD_150); break; // SoC/SoH/pojemności
+      case 3: transmit_can_frame(&BYD_210); break; // Tmin/Tmax
+    }
   }
   //Send 60s message
   if (currentMillis - previousMillis60s >= INTERVAL_60_S) {
